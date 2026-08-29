@@ -1,0 +1,24 @@
+# Notify when an UniUni parcel goes out for delivery.
+
+alias: "UniUni: out for delivery"
+description: Notify when a tracked UniUni parcel is loaded for delivery today.
+mode: queued
+max: 10
+
+triggers:
+  - trigger: event
+    event_type: uniuni_parcel_status_changed
+
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.new_status == 'out_for_delivery' }}"
+
+actions:
+  - action: notify.mobile_app
+    data:
+      title: "UniUni on the way"
+      message: >-
+        {{ trigger.event.data.sender or trigger.event.data.barcode }}
+        is being delivered today.
+      data:
+        clickAction: "{{ trigger.event.data.url }}"
