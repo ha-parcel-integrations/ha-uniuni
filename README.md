@@ -43,7 +43,7 @@ Part of the [ha-parcel-integrations](https://github.com/ha-parcel-integrations) 
 
 ## Requirements
 
-- Home Assistant 2024.7 or newer
+- Home Assistant 2024.12 or newer
 - An UniUni parcel and its tracking code (from the shipping
   confirmation email or the missed-delivery card) — no account needed
 
@@ -95,6 +95,10 @@ Standard HA removal applies: **Settings → Devices & Services → UniUni → �
 | `sensor.uniuni_last_successful_update` | Diagnostic: when UniUni was last polled successfully |
 
 A delivered parcel moves from its per-parcel sensor to the delivered sensor automatically.
+
+A **Deliveries** calendar entity is also created, showing expected delivery windows for active parcels — read-only, no extra API calls.
+
+A **Refresh** button entity forces an immediate poll, without waiting for the next scheduled interval.
 
 ## Parcel status reference
 
