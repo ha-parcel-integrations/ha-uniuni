@@ -39,26 +39,36 @@ def test_unknown_state_warns_once(caplog):
 def test_timestamp_helpers_and_dimensions_are_safe():
     assert parse_iso("2026-01-01T00:00:00Z").tzinfo
     assert parse_iso("garbage") is None
-    assert to_iso_timestamp(1788206400000)
+    assert to_iso_timestamp(1788206400)
     assert to_iso_timestamp(10**20) is None
     assert format_dimensions(1, 2, 3)["text"] == "1 x 2 x 3 cm"
     assert format_dimensions(1, None, 3) is None
     assert tracking_url("UUS-X") is None
 
 
-def test_history_sorts_trace_time_and_drops_unsettled_timestamp():
+def test_history_sorts_trace_time_and_drops_unusable_timestamp():
     history = build_history(delivered_sample()["spath_list"])
     assert [item["status"] for item in history] == [ParcelStatus.REGISTERED, ParcelStatus.IN_TRANSIT, ParcelStatus.DELIVERED]
     assert build_history([{"state": 199}, "bad"]) == []
     malformed = event(199, 1, None)
-    malformed["dateTime"] = {"ts": 1}
+    malformed["dateTime"] = {"ts": None}
     assert build_history([malformed]) == []
+
+
+def test_missing_timezone_falls_back_to_ts():
+    # The pre-network "Order received" event consistently carries a null
+    # timezone/offsetByGMT on real parcels; ts alone must still anchor it.
+    pre_network = event(190, 1, 1788033600)
+    pre_network["dateTime"]["timezone"] = None
+    pre_network["dateTime"]["offsetByGMT"] = None
+    history = build_history([pre_network])
+    assert history[0]["timestamp"] == "2026-08-29T20:00:00+00:00"
 
 
 def test_timestamp_shape_warns_once(caplog):
     parcels_module._warned.discard("timestamp-shape")
     malformed = event(199, 1, None)
-    malformed["dateTime"] = {"ts": 1}
+    malformed["dateTime"] = {"ts": None}
     assert build_history([malformed]) == []
     assert build_history([malformed]) == []
     assert caplog.text.count("dateTime keys") == 1

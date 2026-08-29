@@ -81,16 +81,16 @@ def _warn_unmapped_status(code: str) -> None:
 
 
 def _warn_timestamp_shape(metadata: Any) -> None:
-    """Warn once when a history event's dateTime has no resolvable timestamp.
+    """Warn once when a history event's dateTime has no usable ``ts`` at all.
 
     Structure only — the ``dateTime`` dict's keys, never its values (a
     ``localTime`` string could conceivably carry a recipient-adjacent detail).
     """
     _warn_once(
         "timestamp-shape",
-        "A UniUni history event's dateTime lacks a resolvable timezone/"
-        "offsetByGMT — the event is dropped rather than risk an unanchored "
-        "timestamp. Open an issue and paste this line: %s\n  dateTime keys=%s",
+        "A UniUni history event's dateTime has no usable ts — the event is "
+        "dropped rather than risk an unanchored timestamp. Open an issue and "
+        "paste this line: %s\n  dateTime keys=%s",
         NEW_ISSUE_URL,
         sorted(metadata) if isinstance(metadata, dict) else type(metadata).__name__,
     )
@@ -160,18 +160,18 @@ def parse_iso(value: str | None) -> datetime | None:
 
 
 def to_iso_timestamp(value: Any) -> str | None:
-    """Return an ISO 8601 string for an API timestamp field.
+    """Return an ISO 8601 string for a ``dateTime.ts`` value.
 
-    Numbers are treated as **epoch milliseconds** — the common case for the
-    consumer APIs in this suite. Strings pass through untouched; their
-    consumers are guarded by :func:`parse_iso`. Adjust the numeric branch if
-    your carrier stamps in seconds.
+    UniUni's ``ts`` is confirmed **epoch seconds** — verified by comparing a
+    real event's ``ts`` against its own ``localTime``/``offsetByGMT`` pair
+    (``localTime == ts + offsetByGMT``). Strings pass through untouched;
+    their consumers are guarded by :func:`parse_iso`.
     """
     if value is None:
         return None
     if isinstance(value, (int, float)):
         try:
-            return datetime.fromtimestamp(value / 1000, tz=timezone.utc).isoformat()
+            return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
         except (OverflowError, OSError, ValueError):
             return None
     return str(value)
@@ -207,7 +207,10 @@ def build_history(events: list | None, *, max_events: int = HISTORY_MAX_EVENTS) 
     newest and capped to the most recent ``max_events``.
 
     UniUni's settled event fields are ``state``, ``description_en`` and
-    timezone-qualified ``dateTime.ts``.
+    ``dateTime.ts``. The pre-network "Order received" event consistently
+    carries a null ``timezone``/``offsetByGMT`` — confirmed on every real
+    parcel seen so far — but ``ts`` alone is still a valid UTC anchor, so it
+    is used directly rather than dropping the event.
     """
     parseable: list[tuple[datetime, dict]] = []
     unparseable: list[dict] = []
@@ -216,11 +219,7 @@ def build_history(events: list | None, *, max_events: int = HISTORY_MAX_EVENTS) 
             continue
         metadata = event.get("dateTime")
         timestamp = (
-            to_iso_timestamp(metadata.get("ts"))
-            if isinstance(metadata, dict)
-            and metadata.get("timezone") is not None
-            and metadata.get("offsetByGMT") is not None
-            else None
+            to_iso_timestamp(metadata.get("ts")) if isinstance(metadata, dict) else None
         )
         if not timestamp:
             _warn_timestamp_shape(metadata)

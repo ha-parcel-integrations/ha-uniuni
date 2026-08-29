@@ -44,18 +44,23 @@ The EDD request follows only a resolved tracking result. Current EDD values are
 null and the primary estimate is date-only, so all ETA fields deliberately stay
 `None`. A first populated EDD logs only its type and top-level field names until
 its timestamp semantics are captured. History is opt-in via the ``history``
-key; its timestamps use only event metadata with both timezone and GMT
-offset. The complete carrier record is preserved in `raw`; diagnostics redact
-its sensitive fields before export. Pickup status is mapped, but no pickup
-location is exposed. API mechanics live in `carrier-research/uniuni/api/`.
+key; `dateTime.ts` is confirmed **epoch seconds** (verified against a real
+event's own `localTime`/`offsetByGMT`) and anchors a history entry on its own —
+`timezone`/`offsetByGMT` being null is the normal, confirmed shape of the
+pre-network "Order received" event on every real parcel seen so far, not a
+reason to drop it. The complete carrier record is preserved in `raw`;
+diagnostics redact its sensitive fields before export. Pickup status is
+mapped, but no pickup location is exposed. API mechanics live in
+`carrier-research/uniuni/api/`.
 
 **Pre-1.0 WARNING obligations** (`parcels.py`'s `_warn_once`/`_warned`; `api.py`
 keeps its own key/EDD/multiplicity flags): an unmapped status
 (`_warn_unmapped_status`), a rejected public web key (`_warn_key_rejected`,
 redacted, one per key surface), a first populated EDD field
-(type/keys only, value withheld), a history event whose `dateTime` carries no
-resolvable `timezone`/`offsetByGMT` (`_warn_timestamp_shape` — the event is
-dropped, only its `dateTime` keys are logged), the top-level `state`
+(type/keys only, value withheld), a history event whose `dateTime.ts` isn't a
+usable number at all (`_warn_timestamp_shape` — the event is dropped, only
+its `dateTime` keys are logged; a null `timezone`/`offsetByGMT` alone no
+longer triggers this), the top-level `state`
 disagreeing with the latest history event's mapped status
 (`_warn_status_event_disagreement` — status codes only, always checked
 against `spath_list` even when the `history` option is off), and a tracking

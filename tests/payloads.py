@@ -30,9 +30,9 @@ def delivered_sample(code: str = DELIVERED_CODE) -> dict:
         "estimate_time": "2026-08-30",
         "partner_id": "redacted",
         "spath_list": [
-            event(203, 3, 1788206400000, "Delivered"),
-            event(199, 2, 1788120000000, "In transit"),
-            event(190, 1, 1788033600000, "Registered"),
+            event(203, 3, 1788206400, "Delivered"),
+            event(199, 2, 1788120000, "In transit"),
+            event(190, 1, 1788033600, "Registered"),
         ],
     }
 
