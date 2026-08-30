@@ -20,8 +20,7 @@ def reset_one_shot_warnings():
     makes them leak across tests, so whether a warning fires would otherwise
     depend on test order.
     """
-    from custom_components.uniuni import api
-    from custom_components.uniuni import parcels
+    from custom_components.uniuni import api, parcels
 
     api._key_warning_logged.clear()
     api._edd_shape_warning_logged = False
