@@ -16,7 +16,7 @@
       "init": {
         "title": "Options UniUni",
         "menu_options": {
-          "parcels": "Colis",
+          "parcels": "Gérer les colis",
           "settings": "Paramètres"
         },
         "sections": {
@@ -63,7 +63,7 @@
         "data": {
           "delivered_filter_type": "Colis livrés : filtrer par",
           "delivered_filter_amount": "Colis livrés : quantité",
-          "include_history": "Inclure l'historique du colis"
+          "include_history": "Inclure l’historique des statuts"
         }
       }
     },
