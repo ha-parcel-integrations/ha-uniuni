@@ -271,6 +271,18 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
     delivered = status is ParcelStatus.DELIVERED
 
     history_entries = build_history(raw.get("spath_list"))
+    # The carrier exposes no separate delivery timestamp; its delivered event's
+    # ``dateTime.ts`` is the only anchor, confirmed as epoch seconds.
+    delivered_at = None
+    if delivered:
+        delivered_at = next(
+            (
+                entry["timestamp"]
+                for entry in reversed(history_entries)
+                if entry["status"] is ParcelStatus.DELIVERED
+            ),
+            None,
+        )
     if history_entries:
         latest_event_status = history_entries[-1]["status"]
         if latest_event_status is not None and latest_event_status is not status:
@@ -284,7 +296,7 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
         "status": status,
         "raw_status": str(status_code) if status_code is not None else None,
         "delivered": delivered,
-        "delivered_at": None,
+        "delivered_at": delivered_at,
         "planned_from": None,
         "planned_to": None,
         "pickup": status is ParcelStatus.AT_PICKUP_POINT,

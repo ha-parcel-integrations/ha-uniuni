@@ -99,7 +99,8 @@ def test_normalize_exact_contract_and_retains_source_record():
     parcel = normalize_parcel(raw, include_history=True)
     assert list(parcel) == ["carrier", "barcode", "sender", "receiver", "status", "raw_status", "delivered", "delivered_at", "planned_from", "planned_to", "pickup", "pickup_point", "url", "weight", "dimensions", "history", "raw"]
     assert parcel["barcode"] == raw["tno"] and parcel["status"] is ParcelStatus.DELIVERED
-    assert parcel["history"] and parcel["planned_from"] is None and parcel["delivered_at"] is None
+    assert parcel["history"] and parcel["planned_from"] is None
+    assert parcel["delivered_at"] == parcel["history"][-1]["timestamp"]
     assert parcel["sender"] is parcel["receiver"] is parcel["pickup_point"] is None
     assert parcel["raw"] is raw
 
