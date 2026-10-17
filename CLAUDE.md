@@ -54,7 +54,10 @@ key; `dateTime.ts` is confirmed **epoch seconds** (verified against a real
 event's own `localTime`/`offsetByGMT`) and anchors a history entry on its own —
 `timezone`/`offsetByGMT` being null is the normal, confirmed shape of the
 pre-network "Order received" event on every real parcel seen so far, not a
-reason to drop it.
+reason to drop it. The complete carrier record is preserved in `raw`;
+diagnostics redact its sensitive fields before export. Pickup status is
+mapped, but no pickup location is exposed. API mechanics live in
+`carrier-research/uniuni/api/`.
 
 **`ts` is not always there, and the fallback matters.** On some parcels UniUni
 stops sending `ts` partway through and the remaining events carry only
@@ -66,10 +69,7 @@ including the delivery itself — which truncated the history *and* made
 an earlier in-transit scan. **The top-level `state` and the latest
 `spath_list` event never actually disagreed**: across eighteen real parcels
 they match on every one. Treat a disagreement warning as a timestamp problem
-first. The complete carrier record is preserved in `raw`;
-diagnostics redact its sensitive fields before export. Pickup status is
-mapped, but no pickup location is exposed. API mechanics live in
-`carrier-research/uniuni/api/`.
+first.
 
 **Pre-1.0 WARNING obligations** (`parcels.py`'s `_warn_once`/`_warned`; `api.py`
 keeps its own key/EDD/multiplicity flags): an unmapped status
