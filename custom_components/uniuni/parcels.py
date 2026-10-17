@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from homeassistant.config_entries import ConfigEntry
 
@@ -197,6 +198,33 @@ def format_dimensions(
     }
 
 
+def _local_time_timestamp(metadata: Any) -> str | None:
+    """Return an ISO timestamp from ``localTime`` + ``timezone``, or ``None``.
+
+    UniUni drops ``ts`` on the tail end of some parcels and sends only the
+    carrier's own wall-clock time and zone name. Those two are an exact
+    anchor, and without this the newest events — the delivery among them —
+    were discarded, which both truncated the history and made the top-level
+    state look like it disagreed with it.
+    """
+    if not isinstance(metadata, dict):
+        return None
+    local_time = metadata.get("localTime")
+    zone_name = metadata.get("timezone")
+    if not isinstance(local_time, str) or not isinstance(zone_name, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(local_time)
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        return parsed.isoformat()
+    try:
+        return parsed.replace(tzinfo=ZoneInfo(zone_name)).isoformat()
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+
+
 def build_history(events: list | None, *, max_events: int = HISTORY_MAX_EVENTS) -> list[dict]:
     """Build the canonical ``history`` list from the carrier's event list.
 
@@ -221,6 +249,8 @@ def build_history(events: list | None, *, max_events: int = HISTORY_MAX_EVENTS) 
         timestamp = (
             to_iso_timestamp(metadata.get("ts")) if isinstance(metadata, dict) else None
         )
+        if not timestamp:
+            timestamp = _local_time_timestamp(metadata)
         if not timestamp:
             _warn_timestamp_shape(metadata)
             continue

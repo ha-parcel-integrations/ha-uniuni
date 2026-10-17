@@ -120,3 +120,39 @@ def test_sort_and_delivered_filter():
     now = datetime.now(timezone.utc)
     entry = MockConfigEntry(domain=DOMAIN, options={"delivered_filter_type": "days", "delivered_filter_amount": 7})
     assert len(apply_delivered_filter([{"delivered_at": (now - timedelta(days=1)).isoformat()}, {"delivered_at": (now - timedelta(days=30)).isoformat()}, {"delivered_at": "bad"}], entry)) == 2
+
+
+def test_an_event_without_ts_is_kept_via_local_time_and_zone(caplog):
+    """UniUni drops ts on the tail of some parcels and sends only wall time."""
+    history = build_history(
+        [
+            {
+                "state": 200,
+                "description_en": "In transit",
+                "dateTime": {"timezone": "America/Vancouver", "ts": 1784770251},
+            },
+            {
+                "state": 203,
+                "description_en": "Delivered",
+                "dateTime": {
+                    "timezone": "America/Los_Angeles",
+                    "localTime": "2026-07-30 11:48:30",
+                },
+            },
+        ]
+    )
+    assert len(history) == 2
+    assert history[-1]["raw_status"] == "Delivered"
+    assert history[-1]["timestamp"] == "2026-07-30T11:48:30-07:00"
+    assert "no usable ts" not in caplog.text
+
+
+def test_an_event_with_neither_ts_nor_a_usable_local_time_is_still_dropped(caplog):
+    for metadata in (
+        {"timezone": "America/Vancouver", "localTime": "not a time"},
+        {"timezone": "Mars/Olympus", "localTime": "2026-07-30 11:48:30"},
+        {"localTime": "2026-07-30 11:48:30"},
+        {"timezone": "America/Vancouver"},
+    ):
+        assert build_history([{"state": 203, "dateTime": metadata}]) == []
+    assert "no usable ts" in caplog.text

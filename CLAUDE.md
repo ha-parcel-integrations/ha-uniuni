@@ -54,7 +54,19 @@ key; `dateTime.ts` is confirmed **epoch seconds** (verified against a real
 event's own `localTime`/`offsetByGMT`) and anchors a history entry on its own —
 `timezone`/`offsetByGMT` being null is the normal, confirmed shape of the
 pre-network "Order received" event on every real parcel seen so far, not a
-reason to drop it. The complete carrier record is preserved in `raw`;
+reason to drop it.
+
+**`ts` is not always there, and the fallback matters.** On some parcels UniUni
+stops sending `ts` partway through and the remaining events carry only
+`timezone` + `localTime`. Those two are an exact anchor, so
+`_local_time_timestamp` builds the timestamp from them. Before that fallback
+existed those events were dropped — on one captured parcel the last four,
+including the delivery itself — which truncated the history *and* made
+`_warn_status_event_disagreement` fire, because the newest surviving event was
+an earlier in-transit scan. **The top-level `state` and the latest
+`spath_list` event never actually disagreed**: across eighteen real parcels
+they match on every one. Treat a disagreement warning as a timestamp problem
+first. The complete carrier record is preserved in `raw`;
 diagnostics redact its sensitive fields before export. Pickup status is
 mapped, but no pickup location is exposed. API mechanics live in
 `carrier-research/uniuni/api/`.
@@ -63,10 +75,11 @@ mapped, but no pickup location is exposed. API mechanics live in
 keeps its own key/EDD/multiplicity flags): an unmapped status
 (`_warn_unmapped_status`), a rejected public web key (`_warn_key_rejected`,
 redacted, one per key surface), a first populated EDD field
-(type/keys only, value withheld), a history event whose `dateTime.ts` isn't a
-usable number at all (`_warn_timestamp_shape` — the event is dropped, only
-its `dateTime` keys are logged; a null `timezone`/`offsetByGMT` alone no
-longer triggers this), the top-level `state`
+(type/keys only, value withheld), a history event with neither a usable
+`dateTime.ts` nor a `localTime`/`timezone` pair (`_warn_timestamp_shape` — the
+event is dropped, only its `dateTime` keys are logged; a null
+`timezone`/`offsetByGMT` alone no longer triggers this, and nor does a
+missing `ts` that `localTime` can stand in for), the top-level `state`
 disagreeing with the latest history event's mapped status
 (`_warn_status_event_disagreement` — status codes only, always checked
 against `spath_list` even when the `history` option is off), and a tracking
