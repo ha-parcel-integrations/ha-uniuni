@@ -156,3 +156,18 @@ def test_an_event_with_neither_ts_nor_a_usable_local_time_is_still_dropped(caplo
     ):
         assert build_history([{"state": 203, "dateTime": metadata}]) == []
     assert "no usable ts" in caplog.text
+
+
+def test_zone_names_lists_every_event_zone():
+    raw = {"spath_list": [{"dateTime": {"timezone": "Asia/Tokyo"}}, {"dateTime": None}, "x"]}
+    assert parcels_module.zone_names(raw) == {"Asia/Tokyo"}
+
+
+def test_local_time_uses_the_zones_the_coordinator_resolved():
+    from zoneinfo import ZoneInfo
+
+    metadata = {"localTime": "2026-01-02T10:00:00", "timezone": "Asia/Tokyo"}
+    zones = {"Asia/Tokyo": ZoneInfo("Asia/Tokyo")}
+    assert parcels_module._local_time_timestamp(metadata, zones) == "2026-01-02T10:00:00+09:00"
+    # A zone the coordinator could not resolve yields no timestamp, never a guess.
+    assert parcels_module._local_time_timestamp(metadata, {"Asia/Tokyo": None}) is None

@@ -15,7 +15,8 @@ and should be left alone.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from collections.abc import Mapping
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -198,7 +199,35 @@ def format_dimensions(
     }
 
 
-def _local_time_timestamp(metadata: Any) -> str | None:
+def _resolve_zone(
+    name: str, zones: Mapping[str, tzinfo | None] | None
+) -> tzinfo | None:
+    """Return the zone for ``name``, or ``None`` when it is unknown.
+
+    The coordinator resolves zones off the event loop and passes them in;
+    ``zones=None`` (direct callers, tests) falls back to ``ZoneInfo``.
+    """
+    if zones is not None:
+        return zones.get(name)
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+
+
+def zone_names(raw: dict) -> set[str]:
+    """Return the IANA zone names a parcel's events carry, for the coordinator to resolve."""
+    names: set[str] = set()
+    for event in raw.get("spath_list") or []:
+        metadata = event.get("dateTime") if isinstance(event, dict) else None
+        if isinstance(metadata, dict) and isinstance(metadata.get("timezone"), str):
+            names.add(metadata["timezone"])
+    return names
+
+
+def _local_time_timestamp(
+    metadata: Any, zones: Mapping[str, tzinfo | None] | None = None
+) -> str | None:
     """Return an ISO timestamp from ``localTime`` + ``timezone``, or ``None``.
 
     UniUni drops ``ts`` on the tail end of some parcels and sends only the
@@ -219,13 +248,16 @@ def _local_time_timestamp(metadata: Any) -> str | None:
         return None
     if parsed.tzinfo is not None:
         return parsed.isoformat()
-    try:
-        return parsed.replace(tzinfo=ZoneInfo(zone_name)).isoformat()
-    except (ZoneInfoNotFoundError, ValueError):
-        return None
+    zone = _resolve_zone(zone_name, zones)
+    return parsed.replace(tzinfo=zone).isoformat() if zone is not None else None
 
 
-def build_history(events: list | None, *, max_events: int = HISTORY_MAX_EVENTS) -> list[dict]:
+def build_history(
+    events: list | None,
+    *,
+    max_events: int = HISTORY_MAX_EVENTS,
+    zones: Mapping[str, tzinfo | None] | None = None,
+) -> list[dict]:
     """Build the canonical ``history`` list from the carrier's event list.
 
     Each entry is ``{timestamp, status, raw_status}`` — identical across all
@@ -250,7 +282,7 @@ def build_history(events: list | None, *, max_events: int = HISTORY_MAX_EVENTS) 
             to_iso_timestamp(metadata.get("ts")) if isinstance(metadata, dict) else None
         )
         if not timestamp:
-            timestamp = _local_time_timestamp(metadata)
+            timestamp = _local_time_timestamp(metadata, zones)
         if not timestamp:
             _warn_timestamp_shape(metadata)
             continue
@@ -276,7 +308,12 @@ def tracking_url(tracking_code: str | None) -> str | None:
     return TRACKING_URL.format(tracking_code=tracking_code)
 
 
-def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
+def normalize_parcel(
+    raw: dict,
+    *,
+    include_history: bool = False,
+    zones: Mapping[str, tzinfo | None] | None = None,
+) -> dict:
     """Return a carrier-agnostic parcel dict with the payload under ``raw``.
 
     The **keys of the returned dict are
@@ -300,7 +337,7 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
     status = map_parcel_status(status_code)
     delivered = status is ParcelStatus.DELIVERED
 
-    history_entries = build_history(raw.get("spath_list"))
+    history_entries = build_history(raw.get("spath_list"), zones=zones)
     # The carrier exposes no separate delivery timestamp; its delivered event's
     # ``dateTime.ts`` is the only anchor, confirmed as epoch seconds.
     delivered_at = None
