@@ -1,4 +1,5 @@
 """Tests for the UniUni refresh button."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 from custom_components.uniuni.button import UniUniRefreshButton

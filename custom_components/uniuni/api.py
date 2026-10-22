@@ -1,4 +1,5 @@
 """UniUni public tracking client."""
+
 from __future__ import annotations
 
 import logging
@@ -41,12 +42,14 @@ def _warn_key_rejected(surface: str) -> None:
     """Warn once without leaking a transport key or tracking code."""
     if surface not in _key_warning_logged:
         _key_warning_logged.add(surface)
-        _LOGGER.warning("UniUni rejected its public %s key; retaining prior parcel data", surface)
+        _LOGGER.warning(
+            "UniUni rejected its public %s key; retaining prior parcel data", surface
+        )
 
 
 def _warn_multiple_records(count: int) -> None:
     """Warn once when a single tracking id resolves to more than one record."""
-    global _multiplicity_warning_logged
+    global _multiplicity_warning_logged  # noqa: PLW0603  # once-per-process flag
     if _multiplicity_warning_logged:
         return
     _multiplicity_warning_logged = True
@@ -82,7 +85,9 @@ class UniUniApiClient:
                 _warn_key_rejected("tracking")
                 raise UniUniApiError("tracking key rejected")
             if response.status != 200:
-                raise UniUniApiError(f"HTTP {response.status}", status_code=response.status)
+                raise UniUniApiError(
+                    f"HTTP {response.status}", status_code=response.status
+                )
 
         records = self._records(payload)
         if records is None:
@@ -98,7 +103,7 @@ class UniUniApiClient:
 
     async def _async_check_edd(self, tno: str) -> None:
         """Probe EDD only for a resolved record; do not publish unknown semantics."""
-        global _edd_shape_warning_logged
+        global _edd_shape_warning_logged  # noqa: PLW0603  # once-per-process flag
         payload_data = {"key": EDD_WEB_KEY, "tnos": [tno]}
         async with self._session.post(EDD_API_URL, json=payload_data) as response:
             if response.status == 429:
@@ -118,7 +123,13 @@ class UniUniApiClient:
         if not isinstance(payload, dict):
             raise UniUniApiError("unexpected EDD envelope")
         data = payload.get("data")
-        records = data if isinstance(data, list) else data.get("data") if isinstance(data, dict) else None
+        records = (
+            data
+            if isinstance(data, list)
+            else data.get("data")
+            if isinstance(data, dict)
+            else None
+        )
         if not isinstance(records, list):
             raise UniUniApiError("unexpected EDD envelope")
         for record in records:
@@ -130,7 +141,9 @@ class UniUniApiClient:
                     "UniUni returned a populated EDD field; ETA is withheld until "
                     "its shape is verified (type=%s, keys=%s). Open an issue and "
                     "paste this line: %s",
-                    type(record["delivery_estimate"]).__name__, sorted(record), NEW_ISSUE_URL,
+                    type(record["delivery_estimate"]).__name__,
+                    sorted(record),
+                    NEW_ISSUE_URL,
                 )
             break
 

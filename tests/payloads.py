@@ -1,4 +1,5 @@
 """Synthetic, privacy-safe UniUni payloads used by tests."""
+
 from __future__ import annotations
 
 ACTIVE_CODE = "UUS-SYNTHETIC-ACTIVE"

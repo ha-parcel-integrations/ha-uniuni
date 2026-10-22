@@ -12,11 +12,12 @@ timestamp parsing, the history builder, the sort contract, the delivered
 filter, the one-shot warning for unmapped statuses — is suite-wide machinery
 and should be left alone.
 """
+
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping
-from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import UTC, datetime, timedelta, tzinfo
+import logging
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -51,12 +52,33 @@ NEW_ISSUE_URL = (
 # warning that asks the user to report it, which is how the map grows.
 _STATUS_MAP: dict[str, ParcelStatus] = {
     **{str(code): ParcelStatus.REGISTERED for code in (190, 223)},
-    **{str(code): ParcelStatus.IN_TRANSIT for code in (199, 200, 218, 221, 225, 229, 4010, 1910, 195, 204, 217, 255)},
+    **{
+        str(code): ParcelStatus.IN_TRANSIT
+        for code in (199, 200, 218, 221, 225, 229, 4010, 1910, 195, 204, 217, 255)
+    },
     **{str(code): ParcelStatus.OUT_FOR_DELIVERY for code in (202, 220)},
     **{str(code): ParcelStatus.DELIVERED for code in (203, 216, 228)},
     **{str(code): ParcelStatus.AT_PICKUP_POINT for code in (214, 226)},
     **{str(code): ParcelStatus.RETURNING for code in (211, 215, 230, 233, 234)},
-    **{str(code): ParcelStatus.PROBLEM for code in (192, 198, 1870, 206, 207, 209, 212, 213, 219, 222, 224, 231, 232, 235)},
+    **{
+        str(code): ParcelStatus.PROBLEM
+        for code in (
+            192,
+            198,
+            1870,
+            206,
+            207,
+            209,
+            212,
+            213,
+            219,
+            222,
+            224,
+            231,
+            232,
+            235,
+        )
+    },
 }
 
 # Keys already warned about, so each unconfirmed shape is logged only once
@@ -98,7 +120,9 @@ def _warn_timestamp_shape(metadata: Any) -> None:
     )
 
 
-def _warn_status_event_disagreement(status: ParcelStatus, event_status: ParcelStatus) -> None:
+def _warn_status_event_disagreement(
+    status: ParcelStatus, event_status: ParcelStatus
+) -> None:
     """Warn once when the top-level state disagrees with the latest history event."""
     _warn_once(
         "status-event-disagreement",
@@ -153,11 +177,11 @@ def parse_iso(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value))
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed
 
 
@@ -173,7 +197,7 @@ def to_iso_timestamp(value: Any) -> str | None:
         return None
     if isinstance(value, (int, float)):
         try:
-            return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+            return datetime.fromtimestamp(value, tz=UTC).isoformat()
         except (OverflowError, OSError, ValueError):
             return None
     return str(value)
@@ -408,14 +432,12 @@ def apply_delivered_filter(parcels: list[dict], entry: ConfigEntry) -> list[dict
     shows.
     """
     options = entry.options
-    filter_type = options.get(
-        CONF_DELIVERED_FILTER_TYPE, DEFAULT_DELIVERED_FILTER_TYPE
-    )
+    filter_type = options.get(CONF_DELIVERED_FILTER_TYPE, DEFAULT_DELIVERED_FILTER_TYPE)
     amount = int(
         options.get(CONF_DELIVERED_FILTER_AMOUNT, DEFAULT_DELIVERED_FILTER_AMOUNT)
     )
     if filter_type == "days":
-        cutoff = datetime.now(timezone.utc) - timedelta(days=amount)
+        cutoff = datetime.now(UTC) - timedelta(days=amount)
         return [
             parcel
             for parcel in parcels

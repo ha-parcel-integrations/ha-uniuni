@@ -1,5 +1,7 @@
 """Tests for UniUni's numeric state mapping and safe normalisation."""
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -22,7 +24,18 @@ from custom_components.uniuni.parcels import (
 from .payloads import active_sample, delivered_sample, event, pickup_sample
 
 
-@pytest.mark.parametrize("state,status", [(190, ParcelStatus.REGISTERED), (199, ParcelStatus.IN_TRANSIT), (202, ParcelStatus.OUT_FOR_DELIVERY), (203, ParcelStatus.DELIVERED), (214, ParcelStatus.AT_PICKUP_POINT), (211, ParcelStatus.RETURNING), (213, ParcelStatus.PROBLEM)])
+@pytest.mark.parametrize(
+    ("state", "status"),
+    [
+        (190, ParcelStatus.REGISTERED),
+        (199, ParcelStatus.IN_TRANSIT),
+        (202, ParcelStatus.OUT_FOR_DELIVERY),
+        (203, ParcelStatus.DELIVERED),
+        (214, ParcelStatus.AT_PICKUP_POINT),
+        (211, ParcelStatus.RETURNING),
+        (213, ParcelStatus.PROBLEM),
+    ],
+)
 def test_numeric_states_map(state, status):
     assert map_parcel_status(state) is status
     assert map_event_status(state) is status
@@ -48,7 +61,11 @@ def test_timestamp_helpers_and_dimensions_are_safe():
 
 def test_history_sorts_trace_time_and_drops_unusable_timestamp():
     history = build_history(delivered_sample()["spath_list"])
-    assert [item["status"] for item in history] == [ParcelStatus.REGISTERED, ParcelStatus.IN_TRANSIT, ParcelStatus.DELIVERED]
+    assert [item["status"] for item in history] == [
+        ParcelStatus.REGISTERED,
+        ParcelStatus.IN_TRANSIT,
+        ParcelStatus.DELIVERED,
+    ]
     assert build_history([{"state": 199}, "bad"]) == []
     malformed = event(199, 1, None)
     malformed["dateTime"] = {"ts": None}
@@ -79,7 +96,9 @@ def test_timestamp_shape_warns_once(caplog):
 def test_status_event_disagreement_warns_once(caplog):
     parcels_module._warned.discard("status-event-disagreement")
     raw = delivered_sample()
-    raw["state"] = 202  # out_for_delivery, while the latest history event is 'delivered'
+    raw["state"] = (
+        202  # out_for_delivery, while the latest history event is 'delivered'
+    )
     normalize_parcel(raw, include_history=True)
     normalize_parcel(raw, include_history=True)
     assert caplog.text.count("disagrees with its latest history event") == 1
@@ -97,8 +116,28 @@ def test_status_event_agreement_does_not_warn():
 def test_normalize_exact_contract_and_retains_source_record():
     raw = delivered_sample()
     parcel = normalize_parcel(raw, include_history=True)
-    assert list(parcel) == ["carrier", "barcode", "sender", "receiver", "status", "raw_status", "delivered", "delivered_at", "planned_from", "planned_to", "pickup", "pickup_point", "url", "weight", "dimensions", "history", "raw"]
-    assert parcel["barcode"] == raw["tno"] and parcel["status"] is ParcelStatus.DELIVERED
+    assert list(parcel) == [
+        "carrier",
+        "barcode",
+        "sender",
+        "receiver",
+        "status",
+        "raw_status",
+        "delivered",
+        "delivered_at",
+        "planned_from",
+        "planned_to",
+        "pickup",
+        "pickup_point",
+        "url",
+        "weight",
+        "dimensions",
+        "history",
+        "raw",
+    ]
+    assert (
+        parcel["barcode"] == raw["tno"] and parcel["status"] is ParcelStatus.DELIVERED
+    )
     assert parcel["history"] and parcel["planned_from"] is None
     assert parcel["delivered_at"] == parcel["history"][-1]["timestamp"]
     assert parcel["sender"] is parcel["receiver"] is parcel["pickup_point"] is None
@@ -111,15 +150,36 @@ def test_active_pickup_and_pending_records_degrade_safely():
     assert pickup["pickup"] is True and pickup["pickup_point"] is None
     pending = normalize_parcel({"tno": "UUS-PENDING"})
     assert pending["status"] is ParcelStatus.UNKNOWN and pending["history"] is None
-    assert CAPABILITIES == frozenset({"history"})
+    assert frozenset({"history"}) == CAPABILITIES
 
 
 def test_sort_and_delivered_filter():
-    ordered = sort_parcels_by_ts([{"barcode": "b", "planned_from": None}, {"barcode": "a", "planned_from": "2026-01-01T00:00:00Z"}], "planned_from")
+    ordered = sort_parcels_by_ts(
+        [
+            {"barcode": "b", "planned_from": None},
+            {"barcode": "a", "planned_from": "2026-01-01T00:00:00Z"},
+        ],
+        "planned_from",
+    )
     assert [item["barcode"] for item in ordered] == ["a", "b"]
-    now = datetime.now(timezone.utc)
-    entry = MockConfigEntry(domain=DOMAIN, options={"delivered_filter_type": "days", "delivered_filter_amount": 7})
-    assert len(apply_delivered_filter([{"delivered_at": (now - timedelta(days=1)).isoformat()}, {"delivered_at": (now - timedelta(days=30)).isoformat()}, {"delivered_at": "bad"}], entry)) == 2
+    now = datetime.now(UTC)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        options={"delivered_filter_type": "days", "delivered_filter_amount": 7},
+    )
+    assert (
+        len(
+            apply_delivered_filter(
+                [
+                    {"delivered_at": (now - timedelta(days=1)).isoformat()},
+                    {"delivered_at": (now - timedelta(days=30)).isoformat()},
+                    {"delivered_at": "bad"},
+                ],
+                entry,
+            )
+        )
+        == 2
+    )
 
 
 def test_an_event_without_ts_is_kept_via_local_time_and_zone(caplog):
@@ -159,15 +219,22 @@ def test_an_event_with_neither_ts_nor_a_usable_local_time_is_still_dropped(caplo
 
 
 def test_zone_names_lists_every_event_zone():
-    raw = {"spath_list": [{"dateTime": {"timezone": "Asia/Tokyo"}}, {"dateTime": None}, "x"]}
+    raw = {
+        "spath_list": [
+            {"dateTime": {"timezone": "Asia/Tokyo"}},
+            {"dateTime": None},
+            "x",
+        ]
+    }
     assert parcels_module.zone_names(raw) == {"Asia/Tokyo"}
 
 
 def test_local_time_uses_the_zones_the_coordinator_resolved():
-    from zoneinfo import ZoneInfo
-
     metadata = {"localTime": "2026-01-02T10:00:00", "timezone": "Asia/Tokyo"}
     zones = {"Asia/Tokyo": ZoneInfo("Asia/Tokyo")}
-    assert parcels_module._local_time_timestamp(metadata, zones) == "2026-01-02T10:00:00+09:00"
+    assert (
+        parcels_module._local_time_timestamp(metadata, zones)
+        == "2026-01-02T10:00:00+09:00"
+    )
     # A zone the coordinator could not resolve yields no timestamp, never a guess.
     assert parcels_module._local_time_timestamp(metadata, {"Asia/Tokyo": None}) is None

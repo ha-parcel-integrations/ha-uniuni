@@ -1,8 +1,9 @@
 """Sensor platform for the UniUni parcel tracker integration."""
+
 from __future__ import annotations
 
-import logging
 from datetime import datetime
+import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -30,7 +31,6 @@ _LOGGER = logging.getLogger(__name__)
 PARALLEL_UPDATES = 0
 
 
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: UniUniConfigEntry,
@@ -42,9 +42,7 @@ async def async_setup_entry(
     # than (too late) from this forwarded platform.
     coordinator = entry.runtime_data.coordinator
 
-    current_barcodes: set[str] = {
-        p.get("barcode", "") for p in coordinator.data or []
-    }
+    current_barcodes: set[str] = {p.get("barcode", "") for p in coordinator.data or []}
     entry_id = entry.entry_id
 
     # Remove per-parcel sensors from the registry whose barcode is no longer
@@ -65,7 +63,7 @@ async def async_setup_entry(
             and entity_entry.unique_id.startswith(f"{entry_id}_")
             and entity_entry.unique_id not in non_parcel_unique_ids
         ):
-            barcode = entity_entry.unique_id[len(f"{entry_id}_"):]
+            barcode = entity_entry.unique_id[len(f"{entry_id}_") :]
             if barcode not in current_barcodes:
                 registry.async_remove(entity_entry.entity_id)
 
@@ -75,10 +73,10 @@ async def async_setup_entry(
         ),
         UniUniAwaitingPickupSensor(coordinator, entry),
     ]
-    for parcel in coordinator.data or []:
-        entities.append(
-            UniUniParcelSensor(coordinator, entry, parcel.get("barcode", ""))
-        )
+    entities.extend(
+        UniUniParcelSensor(coordinator, entry, parcel.get("barcode", ""))
+        for parcel in coordinator.data or []
+    )
     entities.append(UniUniNextDeliverySensor(coordinator, entry))
     entities.append(UniUniDeliveredParcelsSensor(coordinator, entry))
     entities.append(UniUniLastUpdateSensor(coordinator, entry))
@@ -86,9 +84,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class UniUniIncomingParcelsSensor(
-    CoordinatorEntity[UniUniCoordinator], SensorEntity
-):
+class UniUniIncomingParcelsSensor(CoordinatorEntity[UniUniCoordinator], SensorEntity):
     """Summary sensor: count of active (not-yet-delivered) tracked parcels.
 
     Spawns a per-parcel sensor for each new barcode and removes stale ones
@@ -153,9 +149,7 @@ class UniUniIncomingParcelsSensor(
         super()._handle_coordinator_update()
 
 
-class UniUniAwaitingPickupSensor(
-    CoordinatorEntity[UniUniCoordinator], SensorEntity
-):
+class UniUniAwaitingPickupSensor(CoordinatorEntity[UniUniCoordinator], SensorEntity):
     """Parcels that have arrived at a pickup point and are ready to collect."""
 
     _attr_has_entity_name = True
@@ -226,9 +220,7 @@ class UniUniParcelSensor(CoordinatorEntity[UniUniCoordinator], SensorEntity):
         return dict(parcel) if parcel else {}
 
 
-class UniUniNextDeliverySensor(
-    CoordinatorEntity[UniUniCoordinator], SensorEntity
-):
+class UniUniNextDeliverySensor(CoordinatorEntity[UniUniCoordinator], SensorEntity):
     """Earliest expected delivery datetime across all active parcels."""
 
     _attr_has_entity_name = True
@@ -236,9 +228,7 @@ class UniUniNextDeliverySensor(
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_attribution = ATTRIBUTION
 
-    def __init__(
-        self, coordinator: UniUniCoordinator, entry: ConfigEntry
-    ) -> None:
+    def __init__(self, coordinator: UniUniCoordinator, entry: ConfigEntry) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_next_delivery"
@@ -277,9 +267,7 @@ class UniUniNextDeliverySensor(
         }
 
 
-class UniUniDeliveredParcelsSensor(
-    CoordinatorEntity[UniUniCoordinator], SensorEntity
-):
+class UniUniDeliveredParcelsSensor(CoordinatorEntity[UniUniCoordinator], SensorEntity):
     """Recently delivered tracked UniUni parcels."""
 
     _attr_has_entity_name = True
@@ -288,9 +276,7 @@ class UniUniDeliveredParcelsSensor(
     _attr_attribution = ATTRIBUTION
     _unrecorded_attributes = frozenset({"parcels"})
 
-    def __init__(
-        self, coordinator: UniUniCoordinator, entry: ConfigEntry
-    ) -> None:
+    def __init__(self, coordinator: UniUniCoordinator, entry: ConfigEntry) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_delivered_parcels"
@@ -307,9 +293,7 @@ class UniUniDeliveredParcelsSensor(
         return {"parcels": self.coordinator.delivered}
 
 
-class UniUniLastUpdateSensor(
-    CoordinatorEntity[UniUniCoordinator], SensorEntity
-):
+class UniUniLastUpdateSensor(CoordinatorEntity[UniUniCoordinator], SensorEntity):
     """Diagnostic sensor reporting when UniUni was last polled successfully."""
 
     _attr_has_entity_name = True
@@ -318,9 +302,7 @@ class UniUniLastUpdateSensor(
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_attribution = ATTRIBUTION
 
-    def __init__(
-        self, coordinator: UniUniCoordinator, entry: ConfigEntry
-    ) -> None:
+    def __init__(self, coordinator: UniUniCoordinator, entry: ConfigEntry) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_last_update"
