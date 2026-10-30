@@ -117,6 +117,7 @@ Standard HA removal applies: **Settings → Devices & Services → UniUni → �
 | `sensor.uniuni_parcel_<code>` | One per tracked parcel; state is the canonical status, attributes carry the full normalised parcel |
 | `sensor.uniuni_next_delivery` | Earliest expected delivery moment across all active parcels |
 | `sensor.uniuni_delivered_parcels` | Recently delivered parcels (see the retention option) |
+| `calendar.uniuni_deliveries` | Read-only calendar of expected deliveries, no extra API calls |
 | `sensor.uniuni_last_successful_update` | Diagnostic: when UniUni was last polled successfully |
 
 A delivered parcel moves from its per-parcel sensor to the delivered sensor automatically.
@@ -184,7 +185,7 @@ logger:
 ## Troubleshooting
 
 - **A parcel shows `unknown`** — UniUni has not scanned it yet, the code is wrong, or UniUni has introduced a source state that is not mapped yet.
-- **A status logs "Unrecognised UniUni status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-uniuni/issues/new) with the logged line so the mapping can be extended.
+- **A status logs "Unrecognised UniUni status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-uniuni/issues/new?template=unrecognised_status.yml) with the logged line so the mapping can be extended.
 
 ## Related integrations
 
