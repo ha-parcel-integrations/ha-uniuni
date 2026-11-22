@@ -7,6 +7,7 @@ from custom_components.uniuni.const import ParcelStatus
 from custom_components.uniuni.sensor import (
     UniUniAwaitingPickupSensor,
     UniUniDeliveredParcelsSensor,
+    UniUniEnRouteToPickupPointSensor,
     UniUniIncomingParcelsSensor,
     UniUniLastUpdateSensor,
     UniUniNextDeliverySensor,
@@ -86,12 +87,12 @@ def test_parcel_sensor_missing_barcode():
 def test_next_delivery_picks_earliest():
     coordinator = _coordinator(
         [
-            _parcel("A", planned_from="2026-05-02T10:00:00Z"),
-            _parcel("B", planned_from="2026-05-01T10:00:00Z"),
+            _parcel("A", planned_from="2099-05-02T10:00:00Z"),
+            _parcel("B", planned_from="2099-05-01T10:00:00Z"),
         ]
     )
     sensor = UniUniNextDeliverySensor(coordinator, _entry())
-    assert sensor.native_value == datetime(2026, 5, 1, 10, 0, tzinfo=UTC)
+    assert sensor.native_value == datetime(2099, 5, 1, 10, 0, tzinfo=UTC)
     assert sensor.extra_state_attributes["barcode"] == "B"
 
 
@@ -105,7 +106,7 @@ def test_next_delivery_skips_unparseable_moment():
     coordinator = _coordinator(
         [
             _parcel("A", planned_from="not-a-date"),
-            _parcel("B", planned_from="2026-05-01T10:00:00Z"),
+            _parcel("B", planned_from="2099-05-01T10:00:00Z"),
         ]
     )
     sensor = UniUniNextDeliverySensor(coordinator, _entry())
@@ -127,3 +128,38 @@ def test_last_update_sensor():
     coordinator.last_success_time = moment
     sensor = UniUniLastUpdateSensor(coordinator, _entry())
     assert sensor.native_value == moment
+
+
+def test_next_delivery_skips_a_parcel_whose_window_has_ended():
+    coordinator = _coordinator(
+        [
+            _parcel(
+                "OLD",
+                planned_from="2000-01-01T00:00:00+00:00",
+            ),
+            _parcel("NEW", planned_from="2099-05-01T10:00:00Z"),
+        ]
+    )
+    sensor = UniUniNextDeliverySensor(coordinator, _entry())
+    assert sensor.extra_state_attributes["barcode"] == "NEW"
+
+
+def test_en_route_and_awaiting_pickup_split():
+    parcels = [
+        _parcel("A", ParcelStatus.IN_TRANSIT, pickup=True),
+        _parcel("B", ParcelStatus.AT_PICKUP_POINT, pickup=True),
+        _parcel("C", ParcelStatus.IN_TRANSIT, pickup=False),
+        _parcel("D", ParcelStatus.RETURNING, pickup=True),
+    ]
+    en_route = UniUniEnRouteToPickupPointSensor(_coordinator(parcels), _entry())
+    awaiting = UniUniAwaitingPickupSensor(_coordinator(parcels), _entry())
+    assert en_route.unique_id == "e1_en_route_to_pickup_point"
+    assert [p["barcode"] for p in en_route.extra_state_attributes["parcels"]] == ["A"]
+    assert en_route.native_value == 1
+    assert [p["barcode"] for p in awaiting.extra_state_attributes["parcels"]] == ["B"]
+
+
+def test_en_route_is_empty_without_parcels():
+    assert (
+        UniUniEnRouteToPickupPointSensor(_coordinator([]), _entry()).native_value == 0
+    )

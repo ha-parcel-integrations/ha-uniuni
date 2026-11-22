@@ -55,8 +55,14 @@ event's own `localTime`/`offsetByGMT`) and anchors a history entry on its own â€
 `timezone`/`offsetByGMT` being null is the normal, confirmed shape of the
 pre-network "Order received" event on every real parcel seen so far, not a
 reason to drop it. The complete carrier record is preserved in `raw`;
-diagnostics redact its sensitive fields before export. Pickup status is
-mapped, but no pickup location is exposed. API mechanics live in
+diagnostics redact its sensitive fields before export. `pickup` is derived
+from the events (any event mapped to `at_pickup_point`, so it stays true after
+collection); no pickup location is exposed, so `pickup_point` is always `None`.
+Both `awaiting_pickup` and `en_route_to_pickup_point` exist even though no real
+pickup-point parcel has been seen yet (`delivery_window` stays in
+`PENDING_CAPABILITIES`; codes 214 and 226 are unconfirmed). The delivery window
+goes through the shared `planned_window` helper but is always empty, because
+the carrier's only estimate is date-only and null. API mechanics live in
 `carrier-research/uniuni/api/`.
 
 **`ts` is not always there, and the fallback matters.** On some parcels UniUni

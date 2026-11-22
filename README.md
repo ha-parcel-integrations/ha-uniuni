@@ -113,6 +113,7 @@ Standard HA removal applies: **Settings → Devices & Services → UniUni → �
 | Entity | Description |
 |---|---|
 | `sensor.uniuni_incoming_parcels` | Number of active tracked parcels, full list under the `parcels` attribute |
+| `sensor.uniuni_en_route_to_pickup_point` | Number of parcels on their way to a pickup point that have not arrived yet, full list under the `parcels` attribute |
 | `sensor.uniuni_awaiting_pickup` | Number of parcels waiting to be collected (`at_pickup_point`), full list under the `parcels` attribute |
 | `sensor.uniuni_parcel_<code>` | One per tracked parcel; state is the canonical status, attributes carry the full normalised parcel |
 | `sensor.uniuni_next_delivery` | Earliest expected delivery moment across all active parcels |
