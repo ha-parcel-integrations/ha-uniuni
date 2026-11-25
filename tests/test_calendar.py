@@ -121,3 +121,21 @@ def test_a_whole_day_window_is_an_all_day_event():
     event = cal.event
     assert event.start == date(2099, 1, 1)
     assert event.end == date(2099, 1, 2)
+
+
+def test_contents_is_the_event_title():
+    parcel = _parcel("A", planned_from="2099-01-01T10:00:00Z")
+    parcel["contents"] = "Garden hose"
+    assert _cal([parcel])._events()[0].summary == "Garden hose"
+
+
+def test_title_falls_back_to_sender_without_contents():
+    parcel = _parcel("A", planned_from="2099-01-01T10:00:00Z")
+    parcel["contents"] = None
+    assert _cal([parcel])._events()[0].summary == "Example Sender"
+
+
+def test_title_keeps_the_old_fallback_without_contents_or_sender():
+    parcel = _parcel("A", planned_from="2099-01-01T10:00:00Z")
+    parcel["sender"] = None
+    assert _cal([parcel])._events()[0].summary == "Parcel A"

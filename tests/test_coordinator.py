@@ -4,7 +4,7 @@ The parcel mapping itself is covered by ``test_parcels.py``.
 """
 
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -21,6 +21,7 @@ from custom_components.uniuni.const import (
     ParcelStatus,
 )
 from custom_components.uniuni.coordinator import UniUniCoordinator
+from custom_components.uniuni.parcels import normalize_parcel
 
 from .payloads import ACTIVE_CODE, DELIVERED_CODE, active_sample, delivered_sample
 
@@ -481,3 +482,47 @@ async def test_a_parcel_the_delivered_list_leaves_out_still_fires_delivered(hass
 
     assert sorted(e.data["barcode"] for e in delivered) == sorted([first, second])
     assert len(coordinator.delivered) == 1
+
+
+async def test_user_contents_overlays_the_carrier_value(hass):
+    def carrier_text(raw, **kwargs):
+        parcel = normalize_parcel(raw, **kwargs)
+        parcel["contents"] = "Carrier text"
+        return parcel
+
+    entry = _entry_with([{CONF_TRACKING_CODE: ACTIVE_CODE}])
+    entry.add_to_hass(hass)
+    client = AsyncMock()
+    client.async_get_parcel.return_value = active_sample()
+    coordinator = UniUniCoordinator(hass, client, entry)
+
+    with patch(
+        "custom_components.uniuni.coordinator.normalize_parcel",
+        side_effect=carrier_text,
+    ):
+        data = await coordinator._async_update_data()
+        assert data[0]["contents"] == "Carrier text"
+        coordinator.contents_store.async_set(ACTIVE_CODE, "Running shoes")
+        data = await coordinator._async_update_data()
+        assert data[0]["contents"] == "Running shoes"
+        coordinator.contents_store.async_set(ACTIVE_CODE, None)
+        data = await coordinator._async_update_data()
+        assert data[0]["contents"] == "Carrier text"
+
+
+async def test_user_contents_is_keyed_on_the_requested_code(hass):
+    entry = _entry_with([{CONF_TRACKING_CODE: ACTIVE_CODE}])
+    entry.add_to_hass(hass)
+    client = AsyncMock()
+    client.async_get_parcel.return_value = active_sample("EXAMPLE000777")
+    coordinator = UniUniCoordinator(hass, client, entry)
+    coordinator.contents_store.async_set(ACTIVE_CODE, "Running shoes")
+
+    data = await coordinator._async_update_data()
+
+    assert data[0]["barcode"] == "EXAMPLE000777"
+    assert data[0]["contents"] == "Running shoes"
+    coordinator.data = data
+    coordinator.contents_store.async_set(ACTIVE_CODE, "Socks")
+    coordinator.async_reapply_contents()
+    assert coordinator.data[0]["contents"] == "Socks"
